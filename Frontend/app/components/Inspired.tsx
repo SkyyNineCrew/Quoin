@@ -14,8 +14,7 @@ function Inspired() {
        <section className="relative flex flex-col bg-black py-24">
       <div className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 items-center gap-8 px-6 mb-8">
                   <h2 className="text-3xl font-light tracking-tight text-white sm:text-4xl lg:text-5xl  max-w-139.75 ">
-            <span className="italic text-[#e988f2]">Stay Inspired {" "}</span>  with our latest insights with
-            <span className="italic text-[#e988f2]"> Stellara Ai.</span>
+            <span className="italic text-[#e988f2]">Stay inspired</span> with Quoin's latest market intelligence, verification, and cost insights.
           </h2>
             <p className="text-base leading-relaxed text-white sm:text-lg max-w-165.25 lg:text-[1.875rem]">
            Stay ahead with AI-generated market intelligence, educational tips, and real-time Stellar ecosystem updates.

@@ -1,8 +1,8 @@
-Stellara AI – The Intelligent Web3 Crypto Academy
+Quoin – Trusted construction cost intelligence
 
-Stellara AI is a next-generation Web3 platform built on the Stellar blockchain ecosystem, designed to educate, empower, and connect crypto users through AI-driven learning, social interaction, and real trading tools. The platform combines a crypto learning academy, an AI-powered assistant with voice and chat, a social crypto network, real-time user messaging, live market news, and on-chain trading — all within a single decentralized application. Stellara AI simplifies complex crypto concepts, helps users make informed trading decisions, and creates a collaborative environment where learners and traders grow together.
+Quoin is a construction marketplace built on the Stellar network, helping clients connect with verified quantity surveyors, compare rates, benchmark estimates, and seal project-cost data with cryptographic proof. The platform brings AI-assisted BoQ drafting, public rate transparency, and on-chain verification into one trust layer for construction cost decisions.
 
-🧠 Core Features (Polished) 🤖 Stellara AI Assistant
+🧠 Core Features (Polished) 🤖 Quoin Copilot
 
 Text & voice-based AI crypto mentor Explains trading strategies, blockchain concepts, and Stellar-specific tools
 
@@ -24,7 +24,7 @@ Real-time crypto news
 
 Stellar ecosystem updates
 
-Market trend summaries via AI 🛠 Technology Stack (Optimized for Stellara AI)
+Market trend summaries via AI 🛠 Technology Stack (Optimized for Quoin)
 
 Frontend Next.js + TypeScript Tailwind CSS WebSockets (real-time chat & feed)
 
@@ -36,16 +36,16 @@ Infrastructure
 
 Docker AWS / Railway / Render Vercel (Frontend)
 
-💎 Why “Stellara AI” Works
+💎 Why Quoin Works
 
-✔ Instantly signals AI intelligence ✔ Strong connection to Stellar blockchain ✔ Easy to market & brand ✔ Scales to mobile apps, APIs, and future tools ✔ Sounds credible to investors & partners
+✔ Trust-first construction intelligence ✔ Strong connection to Stellar blockchain ✔ Easy to compare trusted QSs ✔ Scales to additional market data and contract workflows ✔ Sounds credible to clients, partners, and contractors
 
 🚀 Getting Started (Frontend Setup) ✅ Requirements
 
 Node.js v18 or higher npm / pnpm
 
-installation git clone https://github.com/stellara-network/Stellara_Contracts
-cd Stellara_Contracts,
+installation git clone https://github.com/your-org/quoin
+cd quoin
 cd Frontend
 npm install
 

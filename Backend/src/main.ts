@@ -136,9 +136,9 @@ async function bootstrap() {
 
   // Swagger
   const config = new DocumentBuilder()
-    .setTitle('Stellara API')
+    .setTitle('Quoin API')
     .setDescription(
-      'API for authentication, monitoring Stellar network events, and delivering webhooks',
+      'API for Quoin authentication, construction-cost workflows, Stellar monitoring, and webhook delivery',
     )
     .setVersion('1.0')
     .addTag('Authentication')

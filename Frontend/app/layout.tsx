@@ -15,9 +15,9 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Stellara AI — Learn. Trade. Connect.",
+  title: "Quoin — Trusted construction cost intelligence.",
   description:
-    "An all-in-one Web3 academy combining AI-powered learning, social crypto insights, and real on-chain trading — built on Stellar.",
+    "Quoin helps clients compare quantity surveyors, benchmark rates, and seal estimates on the Stellar Network.",
 };
 
 export default function RootLayout({

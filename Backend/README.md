@@ -1,12 +1,12 @@
-Stellara_backend
-🚀 Stellara Backend — Web3 Crypto Academy Server
+Quoin Backend
+🚀 Quoin Backend — Construction cost trust layer API
 
-Stellara Backend is the server-side application powering Stellara AI, a next-generation Web3 learning and social trading platform built on the Stellar blockchain ecosystem. It is designed for crypto learners and traders who need real-time communication, secure account systems, AI-assisted learning tools, and on-chain trading services.
+Quoin Backend is the server-side application powering the Quoin marketplace, a trusted construction-cost platform built on the Stellar blockchain ecosystem. It is designed for clients, quantity surveyors, and project stakeholders who need secure authentication, AI-assisted estimation workflows, transparent rate comparators, and verifiable on-chain cost records.
 
-This backend manages authentication, courses, rewards, social feeds, messaging, AI integrations, and blockchain interactions, while exposing REST APIs and WebSocket gateways consumed by the Stellara AI frontend.
+This backend manages authentication, project workflows, AI integrations, rate data, and blockchain interactions while exposing REST APIs and WebSocket gateways consumed by the Quoin hub and partner services.
 
 🚀 Overview
-Stellara AI is designed to educate, empower, and connect crypto users by combining:
+Quoin is designed to improve trust and transparency in construction-cost decisions by combining:
 
 A crypto learning academy with structured courses and quizzes
 An AI-powered assistant with text and voice guidance
@@ -17,7 +17,7 @@ Live market news and insights powered by AI
 The backend is responsible for securely managing the core application logic, database interactions, and blockchain integrations.
 
 🧠 Core Features
-🤖 Stellara AI Assistant
+🤖 Quoin Copilot
 Text & voice-based AI crypto mentor
 Explains trading strategies, blockchain concepts, and Stellar-specific tools
 Provides market insights & educational guidance (not financial advice)
@@ -59,7 +59,7 @@ Infrastructure
 Docker for containerization
 AWS / Railway / Render for backend hosting
 Vercel for frontend deployment
-💎 Why Stellara AI Works
+💎 Why Quoin Works
 Instantly signals AI intelligence
 Strong connection to Stellar blockchain
 Easy to market & brand
@@ -77,8 +77,8 @@ Credible to investors and partners
 📦 Installation
 
 ```bash
-git clone https://github.com/stellara-network/Stellara_Contracts
-cd Stellara_Contracts/Backend
+git clone https://github.com/your-org/quoin
+cd quoin/Backend
 npm install
 ```
 
@@ -123,7 +123,7 @@ This project uses **HashiCorp Vault** for secure secrets management. Secrets are
 
 ## 📐 API Error Contract (issue #827)
 
-All responses from the Stellara API follow a **consistent envelope shape**, whether the call succeeds or fails. This makes it simple for frontend clients and third-party consumers to handle responses uniformly.
+All responses from the Quoin API follow a **consistent envelope shape**, whether the call succeeds or fails. This makes it simple for frontend clients and third-party consumers to handle responses uniformly.
 
 ### ✅ Success Envelope
 

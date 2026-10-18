@@ -1,4 +1,11 @@
 {
+  "name": "quoin",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "Backend",
+    "Frontend"
+  ],
   "dependencies": {
     "@nestjs/cache-manager": "^3.1.0",
     "cache-manager-ioredis-yet": "^2.1.2",
