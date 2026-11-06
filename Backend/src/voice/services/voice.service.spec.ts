@@ -74,7 +74,8 @@ describe('VoiceService', () => {
         id: 'job-123',
         type: JobType.STT,
         status: JobStatus.COMPLETED,
-        text: 'Test transcription',
+        // getJobStatus projects the entity onto `text` using these columns.
+        transcribedText: 'Test transcription',
       };
 
       mockRepository.findOne.mockResolvedValue(mockJob);
