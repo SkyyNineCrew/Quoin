@@ -1,5 +1,5 @@
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
-import { Redis } from 'ioredis';
+import { RedisService } from '../../redis/redis.service';
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -32,7 +32,11 @@ export class RateLimitService {
     end
   `;
 
-  constructor(private readonly redisClient: Redis) {}
+  // Rate limiting runs on the shared Redis client managed by RedisService.
+  // Injecting ioredis' `Redis` class directly left the provider unresolved:
+  // nothing in the application provides that token, so AuthModule (and with
+  // it the whole application) could not be instantiated.
+  constructor(private readonly redisService: RedisService) {}
 
   /**
    * Helper utility to keep uniform key structuring strategies across guards
@@ -49,13 +53,13 @@ export class RateLimitService {
 
     try {
       // Execute evaluation and parse array responses: [allowed, remaining, ttl]
-      const [allowed, remaining, ttl] = await this.redisClient.eval(
+      const [allowed, remaining, ttl] = await this.redisService.evalScript<
+        [number, number, number]
+      >(
         this.rateLimitLuaScript,
-        1,
-        cacheKey,
-        limit.toString(),
-        windowInSeconds.toString()
-      ) as [number, number, number];
+        [cacheKey],
+        [limit.toString(), windowInSeconds.toString()],
+      );
 
       return {
         allowed: allowed === 1,
