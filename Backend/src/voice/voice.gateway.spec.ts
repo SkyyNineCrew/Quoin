@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { VoiceGateway } from './voice.gateway';
 import { VoiceSessionService, MAX_SESSIONS_PER_USER } from './services/voice-session.service';
 import { StreamingResponseService } from './services/streaming-response.service';
+import { WebSocketTracingAdapter } from '../observability/middleware/websocket-tracing.adapter';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { FeatureContext } from './types/feature-context.enum';
 import { ConversationState } from './types/conversation-state.enum';
@@ -20,6 +22,9 @@ describe('VoiceGateway', () => {
 
   const mockClient = {
     id: 'client123',
+    // Set by WsJwtAuthGuard; the gateway reads the principal from here rather
+    // than from the handshake payload.
+    data: { user: { sub: 'user123' } },
     handshake: {
       auth: {
         userId: 'user123',
@@ -55,6 +60,20 @@ describe('VoiceGateway', () => {
     interruptStream: jest.fn(),
   };
 
+  // Tracing was added to the gateway after this spec was written; without a
+  // provider the whole module fails to compile.
+  const mockWebSocketTracingAdapter = {
+    initializeConnection: jest.fn().mockReturnValue({
+      traceId: 'trace-123',
+      spanId: 'span-123',
+    }),
+    handleDisconnection: jest.fn(),
+    recordMessage: jest.fn(),
+    injectTraceContext: jest.fn().mockReturnValue({}),
+    getTraceContext: jest.fn(),
+    updateMetadata: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -66,6 +85,15 @@ describe('VoiceGateway', () => {
         {
           provide: StreamingResponseService,
           useValue: mockStreamingResponseService,
+        },
+        {
+          provide: WebSocketTracingAdapter,
+          useValue: mockWebSocketTracingAdapter,
+        },
+        {
+          // Required by WsJwtAuthGuard, which is attached with @UseGuards.
+          provide: JwtService,
+          useValue: { verify: jest.fn(), verifyAsync: jest.fn() },
         },
       ],
     }).compile();
