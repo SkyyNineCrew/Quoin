@@ -11,12 +11,15 @@ describe('LlmService', () => {
   let cacheService: LlmCacheService;
   let redisService: RedisService;
 
+  // The real QuotaService runs against this client, so every command must
+  // resolve: a bare jest.fn() returns undefined, and `get(...).then(...)`
+  // inside getQuotaStatus then throws "Quota check failed".
   const mockRedisClient = {
-    get: jest.fn(),
-    set: jest.fn(),
-    incr: jest.fn(),
-    expire: jest.fn(),
-    del: jest.fn(),
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue('OK'),
+    incr: jest.fn().mockResolvedValue(1),
+    expire: jest.fn().mockResolvedValue(1),
+    del: jest.fn().mockResolvedValue(1),
     keys: jest.fn(),
   };
 
@@ -58,13 +61,15 @@ describe('LlmService', () => {
     const model = 'gpt-3.5-turbo';
 
     it('should return cached response if available', async () => {
-      mockRedisClient.get.mockResolvedValueOnce(null); // No custom quota
-      mockRedisClient.get.mockResolvedValueOnce(null); // No custom quota
-      mockRedisClient.get.mockResolvedValueOnce(null); // Monthly usage
-      mockRedisClient.get.mockResolvedValueOnce(null); // Session usage
-      mockRedisClient.get.mockResolvedValueOnce(null); // RPM usage
+      // Answer by key rather than by call order: the quota check and the cache
+      // lookup both read through the same client, and their order/count is an
+      // implementation detail.
+      mockRedisClient.get.mockImplementation((key: string) =>
+        Promise.resolve(
+          key.startsWith('llm:cache:') ? 'cached response' : null,
+        ),
+      );
       mockRedisClient.incr.mockResolvedValue(1); // Initialize counters
-      mockRedisClient.get.mockResolvedValueOnce('cached response'); // Cache hit
 
       const result = await service.generateResponse(userId, sessionId, prompt, {
         model,
