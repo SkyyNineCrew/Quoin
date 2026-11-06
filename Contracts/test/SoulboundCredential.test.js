@@ -29,6 +29,22 @@ describe("SoulboundCredential", function () {
         .to.be.revertedWith("SBT: token already exists");
     });
 
+    it("initialises expiration before the recipient callback runs", async () => {
+      const Probe = await ethers.getContractFactory("CredentialReceiverProbe");
+      const probe = await Probe.deploy(await sbt.getAddress());
+      await probe.waitForDeployment();
+
+      const expiresAt = 4102444800; // 2100-01-01
+      await sbt.issue(await probe.getAddress(), 99, expiresAt);
+
+      // `_safeMint` calls onERC721Received before `issue` used to write the
+      // expiration, so the probe saw 0 ("never expires") mid-mint.
+      expect(await probe.observed()).to.equal(true);
+      expect(await probe.observedTokenId()).to.equal(99n);
+      expect(await probe.observedExpiration()).to.equal(BigInt(expiresAt));
+      expect(await sbt.expiration(99)).to.equal(BigInt(expiresAt));
+    });
+
     it("should emit CredentialIssued", async () => {
       await expect(sbt.issue(alice.address, TOKEN_ID, FUTURE))
         .to.emit(sbt, "CredentialIssued")
