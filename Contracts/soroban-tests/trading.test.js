@@ -476,7 +476,7 @@ describe('Trading Contract Risk Management', () => {
             assert.equal(config.max_position_size, 2000000);
         });
 
-        it('should reject tier config updates from non-admin’, async () => {
+        it('should reject tier config updates from non-admin', async () => {
             const newConfig = {
                 max_position_size: 2000000,
                 daily_volume_cap: 10000000,
