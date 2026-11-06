@@ -14,6 +14,8 @@ describe('PresenceService', () => {
         {
           provide: RedisService,
           useValue: {
+            evalScript: jest.fn(),
+            scanKeys: jest.fn().mockResolvedValue([]),
             client: {
               sAdd: jest.fn(),
               sRem: jest.fn(),
@@ -40,99 +42,109 @@ describe('PresenceService', () => {
   });
 
   describe('userConnected', () => {
-    it('should track socket, mark user online, set version, and heartbeat', async () => {
+    it('registers socket, presence, version and heartbeat in one script', async () => {
       const client = redisService.client as any;
-      client.sAdd.mockResolvedValue(1);
-      client.expire.mockResolvedValue(1);
-      client.incr.mockResolvedValue(1);
+      const evalScript = redisService.evalScript as jest.Mock;
+      evalScript.mockResolvedValue(1);
       client.set.mockResolvedValue('OK');
 
       const version = await service.userConnected('user-1', 'socket-1', 'corr-1');
 
-      expect(client.sAdd).toHaveBeenCalledWith('user:user-1:sockets', 'socket-1');
-      expect(client.sAdd).toHaveBeenCalledWith('presence:online', 'user-1');
-      expect(client.expire).toHaveBeenCalledWith('user:user-1:sockets', 300);
-      expect(client.expire).toHaveBeenCalledWith('presence:online', 3600);
-      expect(client.incr).toHaveBeenCalledWith('user:user-1:version');
-      expect(client.set).toHaveBeenCalledWith(
+      expect(evalScript).toHaveBeenCalledTimes(1);
+      const [script, keys, args] = evalScript.mock.calls[0];
+      expect(script).toContain('SADD');
+      expect(keys).toEqual([
+        'user:user-1:sockets',
+        'presence:online',
+        'user:user-1:version',
         'user:user-1:heartbeat',
+      ]);
+      // socketId, presence TTL, heartbeat TTL, userId, timestamp
+      expect(args.slice(0, 4)).toEqual(['socket-1', 300, 120, 'user-1']);
+      expect(typeof args[4]).toBe('string');
+
+      // Per-socket heartbeat key, used by orphan detection.
+      expect(client.set).toHaveBeenCalledWith(
+        'socket:socket-1:lastSeen',
         expect.any(String),
-        { EX: 120 },
+        { EX: 180 },
       );
       expect(version).toBe(1);
     });
 
     it('should increment version on subsequent connections', async () => {
-      const client = redisService.client as any;
-      client.sAdd.mockResolvedValue(1);
-      client.expire.mockResolvedValue(1);
-      client.incr.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
-      client.set.mockResolvedValue('OK');
+      const evalScript = redisService.evalScript as jest.Mock;
+      evalScript.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
 
-      await service.userConnected('user-1', 'socket-1');
-      await service.userConnected('user-1', 'socket-2');
+      await expect(service.userConnected('user-1', 'socket-1')).resolves.toBe(1);
+      await expect(service.userConnected('user-1', 'socket-2')).resolves.toBe(2);
 
-      expect(client.incr).toHaveBeenCalledTimes(2);
+      expect(evalScript).toHaveBeenCalledTimes(2);
     });
   });
 
   describe('userDisconnected', () => {
     it('should fully clean up user when no sockets remain', async () => {
       const client = redisService.client as any;
-      client.sRem.mockResolvedValue(1);
-      client.sCard.mockResolvedValue(0);
-      client.get.mockResolvedValue('3');
-      client.sMembers.mockResolvedValue(['room-1', 'room-2']);
-      client.del.mockResolvedValue(1);
+      const evalScript = redisService.evalScript as jest.Mock;
+      evalScript.mockResolvedValue(1);
 
-      const mockPipeline = {
-        sRem: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      };
-      client.multi.mockReturnValue(mockPipeline);
+      await expect(
+        service.userDisconnected('user-1', 'socket-1', 'corr-1'),
+      ).resolves.toBe(true);
 
-      await service.userDisconnected('user-1', 'socket-1', 'corr-1');
+      // Per-socket heartbeat is dropped before the script runs.
+      expect(client.del).toHaveBeenCalledWith('socket:socket-1:lastSeen');
 
-      expect(client.sRem).toHaveBeenCalledWith('user:user-1:sockets', 'socket-1');
-      expect(client.del).toHaveBeenCalledWith('user:user-1:sockets');
-      expect(client.sRem).toHaveBeenCalledWith('presence:online', 'user-1');
-      expect(client.del).toHaveBeenCalledWith('user:user-1:version');
-      expect(client.del).toHaveBeenCalledWith('user:user-1:heartbeat');
-      expect(mockPipeline.sRem).toHaveBeenCalledWith('room:room-1:users', 'user-1');
+      const [script, keys, args] = evalScript.mock.calls[0];
+      expect(script).toContain('SCARD');
+      expect(keys).toEqual([
+        'user:user-1:sockets',
+        'presence:online',
+        'user:user-1:version',
+        'user:user-1:heartbeat',
+        'user:user-1:rooms',
+        'user-1',
+      ]);
+      expect(args).toEqual(['socket-1', 300]);
     });
 
     it('should only remove socket and refresh TTL if other sockets remain', async () => {
-      const client = redisService.client as any;
-      client.sRem.mockResolvedValue(1);
-      client.sCard.mockResolvedValue(1);
-      client.expire.mockResolvedValue(1);
+      const evalScript = redisService.evalScript as jest.Mock;
+      evalScript.mockResolvedValue(0);
 
-      await service.userDisconnected('user-1', 'socket-1', 'corr-1');
+      await expect(
+        service.userDisconnected('user-1', 'socket-1', 'corr-1'),
+      ).resolves.toBe(false);
 
-      expect(client.sRem).toHaveBeenCalledWith('user:user-1:sockets', 'socket-1');
-      expect(client.expire).toHaveBeenCalledWith('user:user-1:sockets', 300);
+      expect(evalScript).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('joinRoom / leaveRoom', () => {
-    it('should join room with pipeline and refresh TTLs', async () => {
-      const client = redisService.client as any;
-      client.sAdd.mockResolvedValue(1);
-      client.expire.mockResolvedValue(1);
-
-      const mockPipeline = {
-        sAdd: jest.fn().mockReturnThis(),
-        expire: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      };
-      client.multi.mockReturnValue(mockPipeline);
+    it('should join room with a single script and refresh TTLs', async () => {
+      const evalScript = redisService.evalScript as jest.Mock;
+      evalScript.mockResolvedValue(1);
 
       await service.joinRoom('user-1', 'room-1', 'corr-1');
 
-      expect(mockPipeline.sAdd).toHaveBeenCalledWith('user:user-1:rooms', 'room-1');
-      expect(mockPipeline.sAdd).toHaveBeenCalledWith('room:room-1:users', 'user-1');
-      expect(mockPipeline.expire).toHaveBeenCalledWith('user:user-1:rooms', 3600);
-      expect(mockPipeline.expire).toHaveBeenCalledWith('room:room-1:users', 3600);
+      expect(evalScript).toHaveBeenCalledTimes(1);
+      const [script, keys, args] = evalScript.mock.calls[0];
+      expect(script).toContain('SADD');
+      expect(keys).toEqual(['user:user-1:rooms', 'room:room-1:users']);
+      expect(args).toEqual(['room-1', 'user-1', 3600]);
+    });
+
+    it('should leave room with a single script', async () => {
+      const evalScript = redisService.evalScript as jest.Mock;
+      evalScript.mockResolvedValue(1);
+
+      await service.leaveRoom('user-1', 'room-1', 'corr-1');
+
+      const [script, keys, args] = evalScript.mock.calls[0];
+      expect(script).toContain('SREM');
+      expect(keys).toEqual(['user:user-1:rooms', 'room:room-1:users']);
+      expect(args).toEqual(['room-1', 'user-1']);
     });
   });
 
