@@ -18,6 +18,14 @@ interface DeliveryResult {
   responseTime?: number;
 }
 
+/**
+ * Signals an unsuccessful delivery whose failure has *already* been recorded
+ * by {@link WebhookDeliveryService.deliverEventToConsumer}. It is thrown only
+ * so Bull can apply its retry/backoff policy, and is re-thrown untouched by the
+ * surrounding catch block to avoid accounting for the same attempt twice.
+ */
+class DeliveryFailureError extends Error {}
+
 @Injectable()
 export class WebhookDeliveryService {
   private readonly logger = new Logger(WebhookDeliveryService.name);
@@ -136,15 +144,21 @@ export class WebhookDeliveryService {
           `Successfully delivered event ${event.id} to consumer ${consumer.id}`,
         );
         await this.handleSuccessfulDelivery(event, consumer, responseTime);
-      } else {
-        this.logger.warn(
-          `Failed to deliver event ${event.id} to consumer ${consumer.id} (attempt ${attempt}): ${result.errorMessage}`,
-        );
-        await this.handleFailedDelivery(event, consumer, result, attempt);
-        // Re-throw so Bull can apply retry/backoff
-        throw new Error(result.errorMessage || 'Delivery failed');
+        return;
       }
+
+      this.logger.warn(
+        `Failed to deliver event ${event.id} to consumer ${consumer.id} (attempt ${attempt}): ${result.errorMessage}`,
+      );
+      await this.handleFailedDelivery(event, consumer, result, attempt);
+      // Re-throw so Bull can apply retry/backoff. Wrapped in a dedicated type
+      // so the catch below knows this attempt is already accounted for.
+      throw new DeliveryFailureError(result.errorMessage || 'Delivery failed');
     } catch (error) {
+      if (error instanceof DeliveryFailureError) {
+        throw error;
+      }
+
       this.logger.error(
         `Exception during delivery to consumer ${consumer.id}: ${error.message}`,
         error.stack,

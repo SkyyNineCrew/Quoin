@@ -240,6 +240,26 @@ describe('WebhookDeliveryService', () => {
       );
     });
 
+    it('records a failed delivery exactly once when the POST fails', async () => {
+      const consumer = makeConsumer({ url: 'https://8.8.8.8/webhook' });
+      consumerService.getConsumerById = jest.fn().mockResolvedValue(consumer);
+      const post = jest.fn().mockRejectedValue(new Error('connection reset'));
+      (service as any).httpClient = { post };
+
+      await expect(
+        (service as any).deliverEventToConsumer(makeEvent(), consumer, 1),
+      ).rejects.toThrow('connection reset');
+
+      // The failure used to be recorded twice: once in the failure branch and
+      // again in the catch block that handled the re-thrown error.
+      expect(consumerService.updateDeliveryStats).toHaveBeenCalledTimes(1);
+      expect(consumerService.updateDeliveryStats).toHaveBeenCalledWith(
+        'consumer-1',
+        false,
+      );
+      expect(consumerService.recordDeliveryProgress).toHaveBeenCalledTimes(1);
+    });
+
     it('dead-letters immediately when the URL is unsafe (SSRF)', async () => {
       const consumer = makeConsumer({ url: 'http://169.254.169.254/' });
       consumerService.getConsumerById = jest.fn().mockResolvedValue(consumer);
