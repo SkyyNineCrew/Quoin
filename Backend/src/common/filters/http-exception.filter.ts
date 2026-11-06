@@ -40,7 +40,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const body = this.buildErrorBody(exception, request.url);
+    // Reuse the id CorrelationMiddleware assigned to this request so the
+    // envelope matches the `x-request-id` response header and the request logs.
+    const body = this.buildErrorBody(
+      exception,
+      request.url,
+      this.extractCorrelationId(request),
+    );
 
     // Log 5xx as errors, 4xx as warnings
     if (body.statusCode >= 500) {
@@ -55,9 +61,29 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response.status(body.statusCode).json(body);
   }
 
-  private buildErrorBody(exception: unknown, path: string): ApiErrorBody {
+  /**
+   * Returns the correlation id set by CorrelationMiddleware, falling back to
+   * the raw `x-request-id` header when the filter runs outside the middleware
+   * chain (e.g. in tests or for errors raised during bootstrap).
+   */
+  private extractCorrelationId(request: Request): string {
+    const fromRequest = (request as Request & { correlationId?: string })
+      .correlationId;
+    if (fromRequest) {
+      return fromRequest;
+    }
+
+    const header = request.headers?.['x-request-id'];
+    const value = Array.isArray(header) ? header[0] : header;
+    return value || uuidv4();
+  }
+
+  private buildErrorBody(
+    exception: unknown,
+    path: string,
+    correlationId: string,
+  ): ApiErrorBody {
     const timestamp = new Date().toISOString();
-    const correlationId = uuidv4();
 
     // ── 1. Our own typed ApiError ────────────────────────────────────────────
     if (exception instanceof ApiError) {
@@ -100,6 +126,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         errorCode: this.httpStatusToErrorCode(status),
         message,
         details,
+        correlationId,
         timestamp,
         path,
       };
@@ -115,6 +142,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? 'An unexpected error occurred. Please try again later.'
         : (exception instanceof Error ? exception.message : String(exception)),
       details: null,
+      correlationId,
       timestamp,
       path,
     };
