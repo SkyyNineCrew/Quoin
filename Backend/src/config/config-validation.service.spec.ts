@@ -382,6 +382,29 @@ describe('ConfigValidationService', () => {
         );
       });
 
+      it.each([
+        ['JWT_SECRET', 'DEFAULT-SECRET-CHANGE-IN-PRODUCTION'],
+        ['JWT_SECRET', '  secret  '],
+        ['DB_PASSWORD', 'PASSWORD'],
+        ['DB_PASSWORD', ' ChangeMe '],
+      ])(
+        'should reject a case/whitespace variant of a known weak %s value',
+        (key, value) => {
+          const envVars = {
+            ...validEnvVars,
+            [key]: value,
+            NODE_ENV: 'production',
+          };
+          (configService.get as jest.Mock).mockImplementation(
+            (name: string) => envVars[name],
+          );
+
+          expect(() => service.validate()).toThrow(
+            'Production environment detected with weak or default',
+          );
+        },
+      );
+
       it('should throw error in production with weak JWT_SECRET (less than 32 chars)', () => {
         const envVars = {
           ...validEnvVars,
