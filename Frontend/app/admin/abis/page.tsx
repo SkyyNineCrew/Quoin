@@ -68,6 +68,21 @@ function prettyJson(value: unknown) {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
+async function fetchRegistries(signal?: AbortSignal): Promise<RegistrySummary[]> {
+  const response = await fetch(`${API_BASE_URL}/abi-registry/contracts`, {
+    cache: "no-store",
+    signal,
+  });
+  const payload = await response.json();
+  return Array.isArray(payload) ? payload : [];
+}
+
+function registryStatus(items: RegistrySummary[]) {
+  return items.length
+    ? `Loaded ${items.length} contract ABI entr${items.length === 1 ? "y" : "ies"}.`
+    : "No ABIs registered yet.";
+}
+
 export default function AbiAdminPage() {
   const [token, setToken] = useState("");
   const [registries, setRegistries] = useState<RegistrySummary[]>([]);
@@ -76,58 +91,57 @@ export default function AbiAdminPage() {
   const [status, setStatus] = useState("Loading ABI registry...");
   const [saving, setSaving] = useState(false);
 
-  async function loadRegistries() {
-    setStatus("Refreshing ABI registry...");
-    try {
-      const response = await fetch(`${API_BASE_URL}/abi-registry/contracts`, {
-        cache: "no-store",
-      });
-      const payload = await response.json();
-      const items = Array.isArray(payload) ? payload : [];
-      setRegistries(items);
-      setStatus(
-        items.length
-          ? `Loaded ${items.length} contract ABI entr${items.length === 1 ? "y" : "ies"}.`
-          : "No ABIs registered yet.",
-      );
-    } catch (error) {
-      setStatus("Unable to load ABI registry. Check the backend URL.");
-    }
-  }
-
-  useEffect(() => {
-    void loadRegistries();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedAddress) {
-      return;
-    }
-
-    const selected = registries.find(
-      (registry) => registry.contractAddress === selectedAddress,
-    );
-
-    if (!selected) {
-      return;
-    }
-
+  function applyRegistry(registry: RegistrySummary) {
+    setSelectedAddress(registry.contractAddress);
     setForm({
-      contractAddress: selected.contractAddress,
-      contractType: selected.contractType,
-      displayName: selected.displayName,
-      description: selected.description ?? "",
-      network: selected.network ?? "stellar",
-      version: selected.version?.version ?? selected.currentVersion ?? "1.0.0",
-      contractSchema: prettyJson(selected.version?.contractSchema),
-      abiSchema: prettyJson(selected.version?.abiSchema),
-      functionSchemas: prettyJson(selected.version?.functionSchemas),
-      eventSchemas: prettyJson(selected.version?.eventSchemas),
-      changelog: selected.version?.changelog ?? "",
+      contractAddress: registry.contractAddress,
+      contractType: registry.contractType,
+      displayName: registry.displayName,
+      description: registry.description ?? "",
+      network: registry.network ?? "stellar",
+      version: registry.version?.version ?? registry.currentVersion ?? "1.0.0",
+      contractSchema: prettyJson(registry.version?.contractSchema),
+      abiSchema: prettyJson(registry.version?.abiSchema),
+      functionSchemas: prettyJson(registry.version?.functionSchemas),
+      eventSchemas: prettyJson(registry.version?.eventSchemas),
+      changelog: registry.version?.changelog ?? "",
       metadata: prettyJson({ updatedFrom: "admin-ui" }),
       markAsCurrent: true,
     });
-  }, [selectedAddress, registries]);
+  }
+
+  async function loadRegistries(): Promise<RegistrySummary[]> {
+    try {
+      const items = await fetchRegistries();
+      setRegistries(items);
+      setStatus(registryStatus(items));
+      return items;
+    } catch {
+      setStatus("Unable to load ABI registry. Check the backend URL.");
+      return [];
+    }
+  }
+
+  // Subscribe to the initial registry list once on mount. State is only touched
+  // from the promise callback (never synchronously in the effect body), so no
+  // cascading render is triggered. The abort controller drops responses that
+  // arrive after unmount.
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetchRegistries(controller.signal)
+      .then((items) => {
+        setRegistries(items);
+        setStatus(registryStatus(items));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setStatus("Unable to load ABI registry. Check the backend URL.");
+        }
+      });
+
+    return () => controller.abort();
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -163,8 +177,13 @@ export default function AbiAdminPage() {
         throw new Error(failure || "Save failed");
       }
 
-      await loadRegistries();
-      setSelectedAddress(form.contractAddress);
+      const items = await loadRegistries();
+      const saved = items.find(
+        (registry) => registry.contractAddress === form.contractAddress,
+      );
+      if (saved) {
+        applyRegistry(saved);
+      }
       setStatus(`Saved ABI ${form.version} for ${form.contractAddress}.`);
     } catch (error) {
       setStatus(
@@ -233,7 +252,7 @@ export default function AbiAdminPage() {
                 <button
                   key={registry.contractAddress}
                   type="button"
-                  onClick={() => setSelectedAddress(registry.contractAddress)}
+                  onClick={() => applyRegistry(registry)}
                   className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
                     selectedAddress === registry.contractAddress
                       ? "border-cyan-400/50 bg-cyan-400/12"
