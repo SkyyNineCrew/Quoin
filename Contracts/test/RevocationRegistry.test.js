@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
 describe("RevocationRegistry (Optimized)", function () {
   let owner, user, tokenContract;
@@ -42,27 +43,27 @@ describe("RevocationRegistry (Optimized)", function () {
 
   describe("Time-based revocation expiry", function () {
     it("should set revocation with expiry", async () => {
-      const future = Math.floor(Date.now() / 1000) + 3600;
+      const future = (await time.latest()) + 3600;
       await registry.setRevokedWithExpiry(tokenContract, 1, true, future);
       expect(await registry.isRevoked(tokenContract, 1)).to.equal(true);
       expect(await registry.revocationExpiry(tokenContract, 1)).to.equal(future);
     });
 
     it("should clear expiry when unrevoke is called", async () => {
-      const future = Math.floor(Date.now() / 1000) + 3600;
+      const future = (await time.latest()) + 3600;
       await registry.setRevokedWithExpiry(tokenContract, 1, true, future);
       await registry.setRevoked(tokenContract, 1, false);
       expect(await registry.revocationExpiry(tokenContract, 1)).to.equal(0);
     });
 
     it("should auto-unrevoke after expiry (isRevoked returns false)", async () => {
-      const past = Math.floor(Date.now() / 1000) - 1;
+      const past = (await time.latest()) - 1;
       await registry.setRevokedWithExpiry(tokenContract, 1, true, past);
       expect(await registry.isRevoked(tokenContract, 1)).to.equal(false);
     });
 
     it("should remain revoked before expiry", async () => {
-      const farFuture = Math.floor(Date.now() / 1000) + 86400;
+      const farFuture = (await time.latest()) + 86400;
       await registry.setRevokedWithExpiry(tokenContract, 1, true, farFuture);
       expect(await registry.isRevoked(tokenContract, 1)).to.equal(true);
     });
@@ -154,7 +155,7 @@ describe("RevocationRegistry (Optimized)", function () {
 
     it("should batch revoke with expiry", async () => {
       const ids = [1, 2, 3];
-      const expiry = Math.floor(Date.now() / 1000) + 86400;
+      const expiry = (await time.latest()) + 86400;
       const tx = await registry.setRevokedWithExpiry(tokenContract, 1, true, expiry);
       await tx.wait();
       expect(await registry.isRevoked(tokenContract, 1)).to.equal(true);
@@ -162,7 +163,7 @@ describe("RevocationRegistry (Optimized)", function () {
     });
 
     it("should batch revoke in range with shared expiry", async () => {
-      const expiry = Math.floor(Date.now() / 1000) + 3600;
+      const expiry = (await time.latest()) + 3600;
       await registry.batchSetRevokedInRangeWithExpiry(
         tokenContract, 0, 4, true, expiry
       );
