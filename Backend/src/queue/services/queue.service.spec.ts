@@ -301,7 +301,9 @@ describe('QueueService', () => {
 
   describe('purgeQueue', () => {
     it('should purge failed jobs from queue', async () => {
-      mockQueue.clean.mockResolvedValue(10);
+      // BullMQ's clean() resolves with the removed jobs, not a count.
+      const removed = Array.from({ length: 10 }, (_, i) => ({ id: `${i}` }));
+      mockQueue.clean.mockResolvedValue(removed);
 
       const result = await service.purgeQueue('deploy-contract');
 
