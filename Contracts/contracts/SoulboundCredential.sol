@@ -71,8 +71,11 @@ contract SoulboundCredential is ERC721, Ownable {
     /// @dev Only issuer (owner) can mint new credentials.
     function issue(address to, uint256 tokenId, uint64 expiresAt) external onlyOwner {
         require(!_exists(tokenId), "SBT: token already exists");
-        _safeMint(to, tokenId);
+        // Write the expiry before minting. `_safeMint` hands control to the
+        // recipient's `onERC721Received`, which must not observe a minted
+        // credential whose expiration is still 0 (i.e. never expiring).
         expiration[tokenId] = expiresAt;
+        _safeMint(to, tokenId);
         emit CredentialIssued(to, tokenId, expiresAt);
     }
 
@@ -115,8 +118,10 @@ contract SoulboundCredential is ERC721, Ownable {
             delete revocationReason[oldTokenId];
         }
 
-        _safeMint(newHolder, newTokenId);
+        // Same ordering rule as {issue}: the expiry is part of the credential's
+        // initial state and must be set before the recipient callback runs.
         expiration[newTokenId] = expiresAt;
+        _safeMint(newHolder, newTokenId);
         emit CredentialReissued(newHolder, newTokenId, expiresAt, oldTokenId);
     }
 
