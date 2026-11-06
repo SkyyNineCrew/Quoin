@@ -228,8 +228,16 @@ export class ConfigValidationService {
       'your-super-secret-jwt-key-change-in-production',
     ];
 
+    // Compare case-insensitively and ignore surrounding whitespace: a plain
+    // `Array.includes` let 'Password', 'SECRET' and ' changeme ' through as if
+    // they were strong secrets.
+    const normalizedPatterns = defaultPatterns.map((pattern) =>
+      pattern.toLowerCase(),
+    );
+
     for (const secret of weakSecrets) {
-      if (secret.value && defaultPatterns.includes(secret.value)) {
+      const normalized = secret.value?.trim().toLowerCase();
+      if (normalized && normalizedPatterns.includes(normalized)) {
         errors.push(
           `Production environment detected with weak or default ${secret.label}. ` +
             'Set strong, unique secrets for production.',
