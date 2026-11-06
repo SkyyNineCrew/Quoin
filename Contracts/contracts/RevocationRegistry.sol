@@ -21,7 +21,8 @@ contract RevocationRegistry is Ownable {
     // tokenContract => tokenId => revocation reason
     mapping(address => mapping(uint256 => string)) public revocationReason;
 
-    // Cached count of revoked tokens per contract
+    // Cached count of revoked tokens per contract. Kept exactly in sync with
+    // the number of set bits in `_revokedBitmap`.
     mapping(address => uint256) public revokedCount;
 
     event RevocationSet(
@@ -184,12 +185,22 @@ contract RevocationRegistry is Ownable {
     function clearAll(address tokenContract) external onlyOwner {
         uint256 count = revokedCount[tokenContract];
         if (count == 0) return;
-        // Reset bitmap buckets — iterate enough to cover all possible buckets
-        uint256 buckets = (count + 255) / 256;
-        for (uint256 i = 0; i < buckets; ) {
-            _revokedBitmap[tokenContract][i] = 0;
-            unchecked { ++i; }
+
+        // Walk buckets until every set bit has been cleared. Iterating
+        // `count` buckets instead would miss sparse token IDs — revoking token
+        // 0 and token 5000 sets two bits in buckets 0 and 19 — and resetting
+        // the count would then leave the remaining tokens revoked forever.
+        uint256 cleared = 0;
+        uint256 bucket = 0;
+        while (cleared < count) {
+            uint256 current = _revokedBitmap[tokenContract][bucket];
+            if (current != 0) {
+                _revokedBitmap[tokenContract][bucket] = 0;
+                cleared += _countBits(current);
+            }
+            unchecked { ++bucket; }
         }
+
         revokedCount[tokenContract] = 0;
         emit RevocationBatchCleared(tokenContract, count);
     }
@@ -252,28 +263,49 @@ contract RevocationRegistry is Ownable {
         uint256 bit = tokenId % 256;
         uint256 mask = 1 << bit;
         uint256 current = _revokedBitmap[tokenContract][bucket];
-        bool currentlyRevoked = (current >> bit) & 1 == 1;
+        bool bitSet = (current >> bit) & 1 == 1;
 
-        if (isTokenRevoked != currentlyRevoked) {
-            if (isTokenRevoked) {
-                _revokedBitmap[tokenContract][bucket] = current | mask;
+        uint256 storedExpiry = revocationExpiry[tokenContract][tokenId];
+        // A bit whose expiry has passed is still set but no longer in force,
+        // so it must not be treated as "already revoked": that made it
+        // impossible to revoke such a token again. See {isRevoked}.
+        bool currentlyRevoked =
+            bitSet && !(storedExpiry != 0 && block.timestamp > storedExpiry);
+
+        if (isTokenRevoked) {
+            if (currentlyRevoked) return;
+
+            _revokedBitmap[tokenContract][bucket] = current | mask;
+            // Only tokens whose bit was clear are newly revoked: re-applying a
+            // revocation over an expired one must not inflate the counter.
+            if (!bitSet) {
                 revokedCount[tokenContract]++;
-                revocationExpiry[tokenContract][tokenId] = expiry;
-                revocationTimestamp[tokenContract][tokenId] = block.timestamp;
-                if (bytes(reason).length > 0) {
-                    revocationReason[tokenContract][tokenId] = reason;
-                }
-                emit RevocationSetWithReason(
-                    tokenContract, tokenId, true, expiry, block.timestamp, reason
-                );
-            } else {
-                _revokedBitmap[tokenContract][bucket] = current & ~mask;
-                revokedCount[tokenContract]--;
-                delete revocationExpiry[tokenContract][tokenId];
-                delete revocationTimestamp[tokenContract][tokenId];
-                delete revocationReason[tokenContract][tokenId];
             }
-            emit RevocationSet(tokenContract, tokenId, isTokenRevoked, expiry);
+            revocationExpiry[tokenContract][tokenId] = expiry;
+            revocationTimestamp[tokenContract][tokenId] = block.timestamp;
+            if (bytes(reason).length > 0) {
+                revocationReason[tokenContract][tokenId] = reason;
+            }
+            emit RevocationSetWithReason(
+                tokenContract, tokenId, true, expiry, block.timestamp, reason
+            );
+        } else {
+            if (!bitSet) return;
+
+            _revokedBitmap[tokenContract][bucket] = current & ~mask;
+            revokedCount[tokenContract]--;
+            delete revocationExpiry[tokenContract][tokenId];
+            delete revocationTimestamp[tokenContract][tokenId];
+            delete revocationReason[tokenContract][tokenId];
+        }
+        emit RevocationSet(tokenContract, tokenId, isTokenRevoked, expiry);
+    }
+
+    /// @dev Number of set bits in `x` (Brian Kernighan's method).
+    function _countBits(uint256 x) private pure returns (uint256 n) {
+        while (x != 0) {
+            x &= x - 1;
+            unchecked { ++n; }
         }
     }
 }

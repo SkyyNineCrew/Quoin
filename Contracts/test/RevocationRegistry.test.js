@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
 describe("RevocationRegistry (Optimized)", function () {
   let owner, user, tokenContract;
@@ -219,6 +220,51 @@ describe("RevocationRegistry (Optimized)", function () {
       const batchTotal = batchReceipt.gasUsed;
 
       expect(batchTotal).to.be.below(singleTotal);
+    });
+  });
+
+  describe("Bookkeeping edge cases", function () {
+    it("clearAll clears sparse buckets that revokedCount alone would miss", async () => {
+      // Token 0 lives in bucket 0, token 5000 in bucket 19. Only two tokens
+      // are revoked, so clearing `revokedCount` buckets would leave bucket 19
+      // marked as revoked after the contract was supposedly reset.
+      await registry.setRevoked(tokenContract, 0, true);
+      await registry.setRevoked(tokenContract, 5000, true);
+      expect(await registry.revokedCount(tokenContract)).to.equal(2n);
+
+      await registry.clearAll(tokenContract);
+
+      expect(await registry.revokedCount(tokenContract)).to.equal(0n);
+      expect(await registry.isRevoked(tokenContract, 0)).to.equal(false);
+      expect(await registry.isRevoked(tokenContract, 5000)).to.equal(false);
+      expect(await registry.getRevokedBitmap(tokenContract, 19)).to.equal(0n);
+    });
+
+    it("allows a token to be revoked again after its revocation expired", async () => {
+      const now = await time.latest();
+      await registry.setRevokedWithExpiry(tokenContract, 7, true, now + 60);
+      await time.increase(120);
+
+      expect(await registry.isRevoked(tokenContract, 7)).to.equal(false);
+
+      await registry.setRevoked(tokenContract, 7, true);
+
+      expect(await registry.isRevoked(tokenContract, 7)).to.equal(true);
+      expect(await registry.revocationExpiry(tokenContract, 7)).to.equal(0n);
+      // The token was already counted while its bit was set; re-applying the
+      // revocation must not inflate revokedCount.
+      expect(await registry.revokedCount(tokenContract)).to.equal(1n);
+    });
+
+    it("unrevoking an expired revocation clears its bit and decrements the count", async () => {
+      const now = await time.latest();
+      await registry.setRevokedWithExpiry(tokenContract, 8, true, now + 60);
+      await time.increase(120);
+
+      await registry.setRevoked(tokenContract, 8, false);
+
+      expect(await registry.getRevokedBitmap(tokenContract, 0)).to.equal(0n);
+      expect(await registry.revokedCount(tokenContract)).to.equal(0n);
     });
   });
 });
