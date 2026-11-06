@@ -18,7 +18,9 @@ type RedisConnectionState =
 
 export class RedisIoAdapter extends IoAdapter {
   private adapterConstructor: ReturnType<typeof createAdapter> | undefined;
-  private readonly logger = new Logger(RedisIoAdapter.name);
+  // Must stay `protected`: IoAdapter declares `protected readonly logger`, and
+  // redeclaring it as private is a type error that breaks `nest build`.
+  protected readonly logger = new Logger(RedisIoAdapter.name);
   private connectionState: RedisConnectionState = 'disconnected';
   private metricsService: MetricsService | null = null;
   private tracingService: TracingService | null = null;
