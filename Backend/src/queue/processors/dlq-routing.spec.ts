@@ -3,6 +3,8 @@ import { getQueueToken } from '@nestjs/bull';
 import { DeployContractProcessor } from './deploy-contract.processor';
 import { ProcessTtsProcessor } from './process-tts.processor';
 import { IndexMarketNewsProcessor } from './index-market-news.processor';
+import { QueueJobTracingWrapper } from '../../observability/middleware/queue-job-tracing.wrapper';
+import { QueueIdempotencyGuard } from '../queue-idempotency.guard';
 import {
   ValidationError,
   TransientError,
@@ -10,6 +12,11 @@ import {
 } from '../types/errors';
 
 const makeDlqQueue = () => ({ add: jest.fn() });
+
+// Pass-through so the processors run their real DLQ routing logic.
+const tracingWrapperMock = () => ({
+  wrapProcessor: jest.fn().mockImplementation((fn: any) => fn),
+});
 
 const makeJob = (
   data: any,
@@ -36,6 +43,17 @@ describe('DeployContractProcessor — DLQ routing', () => {
       providers: [
         DeployContractProcessor,
         { provide: getQueueToken('failed-jobs'), useValue: dlqQueue },
+        {
+          provide: QueueIdempotencyGuard,
+          useValue: {
+            isDuplicate: jest.fn().mockResolvedValue({ isDuplicate: false }),
+            generateIdempotencyKey: jest.fn().mockReturnValue('mock-key'),
+          },
+        },
+        {
+          provide: QueueJobTracingWrapper,
+          useValue: tracingWrapperMock(),
+        },
       ],
     }).compile();
     processor = module.get(DeployContractProcessor);
@@ -84,6 +102,10 @@ describe('ProcessTtsProcessor — DLQ routing', () => {
       providers: [
         ProcessTtsProcessor,
         { provide: getQueueToken('failed-jobs'), useValue: dlqQueue },
+        {
+          provide: QueueJobTracingWrapper,
+          useValue: tracingWrapperMock(),
+        },
       ],
     }).compile();
     processor = module.get(ProcessTtsProcessor);
@@ -116,6 +138,10 @@ describe('IndexMarketNewsProcessor — DLQ routing', () => {
       providers: [
         IndexMarketNewsProcessor,
         { provide: getQueueToken('failed-jobs'), useValue: dlqQueue },
+        {
+          provide: QueueJobTracingWrapper,
+          useValue: tracingWrapperMock(),
+        },
       ],
     }).compile();
     processor = module.get(IndexMarketNewsProcessor);
