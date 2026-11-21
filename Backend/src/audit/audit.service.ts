@@ -143,36 +143,49 @@ export class AuditService {
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async archiveOldLogs(): Promise<number> {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 90);
+    const retentionDays = this.configService.get<number>('AUDIT_LOG_RETENTION_DAYS', 365);
+    const activeRetentionDays = 90;
+
+    const activeCutoff = new Date();
+    activeCutoff.setDate(activeCutoff.getDate() - activeRetentionDays);
 
     const oldLogs = await this.auditRepo
       .createQueryBuilder('audit')
-      .where('audit.timestamp < :cutoff', { cutoff })
+      .where('audit.timestamp < :cutoff', { cutoff: activeCutoff })
       .orderBy('audit.timestamp', 'ASC')
       .addOrderBy('audit.id', 'ASC')
       .getMany();
 
-    if (oldLogs.length === 0) {
-      return 0;
+    if (oldLogs.length > 0) {
+      const archives = oldLogs.map((log) =>
+        this.auditArchiveRepo.create({
+          id: log.id,
+          action_type: log.action_type,
+          actor_id: log.actor_id,
+          entity_id: log.entity_id,
+          metadata: log.metadata,
+          timestamp: log.timestamp,
+          previousHash: log.previousHash,
+          hash: log.hash,
+          signature: log.signature,
+        }),
+      );
+
+      await this.auditArchiveRepo.save(archives);
+      await this.auditRepo.delete({ id: In(oldLogs.map((log) => log.id)) });
     }
 
-    const archives = oldLogs.map((log) =>
-      this.auditArchiveRepo.create({
-        id: log.id,
-        action_type: log.action_type,
-        actor_id: log.actor_id,
-        entity_id: log.entity_id,
-        metadata: log.metadata,
-        timestamp: log.timestamp,
-        previousHash: log.previousHash,
-        hash: log.hash,
-        signature: log.signature,
-      }),
-    );
+    const archiveCutoff = new Date();
+    archiveCutoff.setDate(archiveCutoff.getDate() - retentionDays);
 
-    await this.auditArchiveRepo.save(archives);
-    await this.auditRepo.delete({ id: In(oldLogs.map((log) => log.id)) });
+    const expiredArchives = await this.auditArchiveRepo
+      .createQueryBuilder('archive')
+      .where('archive.timestamp < :cutoff', { cutoff: archiveCutoff })
+      .getMany();
+
+    if (expiredArchives.length > 0) {
+      await this.auditArchiveRepo.delete({ id: In(expiredArchives.map((archive) => archive.id)) });
+    }
 
     return oldLogs.length;
   }
@@ -232,7 +245,8 @@ export class AuditService {
   private computeSignature(
     entry: Pick<
       AuditLogEntry,
-      | 'action_type'
+      |
+        'action_type'
       | 'actor_id'
       | 'entity_id'
       | 'metadata'
