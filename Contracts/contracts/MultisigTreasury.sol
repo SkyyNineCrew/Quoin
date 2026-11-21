@@ -194,7 +194,7 @@ contract MultisigTreasury {
         emit RevokeConfirmation(msg.sender, _txIndex);
     }
 
-    function executeTransaction(uint _txIndex) external nonReentrant {
+    function executeTransaction(uint _txIndex) external onlyOwner nonReentrant {
         _executeTransaction(_txIndex, bytes32(0), 0);
     }
 
@@ -209,7 +209,7 @@ contract MultisigTreasury {
      * @param _txIndexes Proposal indexes to execute, in order.
      * @return batchId Correlation id repeated on each per-transaction event.
      */
-    function executeBatch(uint[] calldata _txIndexes) external nonReentrant returns (bytes32 batchId) {
+    function executeBatch(uint[] calldata _txIndexes) external onlyOwner nonReentrant returns (bytes32 batchId) {
         require(_txIndexes.length > 0, "empty batch");
         require(_txIndexes.length <= MAX_BATCH_SIZE, "batch too large");
 

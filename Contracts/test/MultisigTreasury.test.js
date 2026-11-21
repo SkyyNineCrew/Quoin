@@ -968,4 +968,39 @@ describe("MultisigTreasury", function () {
       );
     });
   });
+
+  describe("access control", function () {
+    it("reverts when a non-owner attempts to execute a transaction", async () => {
+      const value = ethers.parseEther("0.5");
+      const idx = await submitTx(owner0, recipient.address, value);
+      await confirmBy(idx, owner0);
+
+      await expect(
+        treasury.connect(recipient).executeTransaction(idx)
+      ).to.be.revertedWith("not owner");
+
+      // Owner can execute successfully
+      await treasury.connect(owner0).executeTransaction(idx);
+      expect((await treasury.getTransaction(idx)).executed).to.equal(true);
+    });
+
+    it("reverts when a non-owner attempts to execute a batch", async () => {
+      const to = [recipient.address];
+      const values = [ethers.parseEther("0.1")];
+      const data = ["0x"];
+
+      const tx = await treasury.connect(owner0).submitBatch(to, values, data);
+      await tx.wait();
+      const idx = 0n;
+      await confirmBy(idx, owner0);
+
+      await expect(
+        treasury.connect(recipient).executeBatch([idx])
+      ).to.be.revertedWith("not owner");
+
+      // Owner can execute batch successfully
+      await treasury.connect(owner0).executeBatch([idx]);
+      expect((await treasury.getTransaction(idx)).executed).to.equal(true);
+    });
+  });
 });
