@@ -2,6 +2,7 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule, InjectQueue } from '@nestjs/bull';
 import { VoiceGateway } from './voice.gateway';
+import { VoiceService } from './services/voice.service';
 import { VoiceSessionService } from './services/voice-session.service';
 import { ConversationStateMachineService } from './services/conversation-state-machine.service';
 import { StreamingResponseService } from './services/streaming-response.service';
@@ -31,6 +32,7 @@ import { VoiceProcessor } from './voice.processor';
   ],
   providers: [
     VoiceGateway,
+    VoiceService,
     VoiceSessionService,
     ConversationStateMachineService,
     StreamingResponseService,
@@ -43,6 +45,7 @@ import { VoiceProcessor } from './voice.processor';
     VoiceProcessor,
   ],
   exports: [
+    VoiceService,
     VoiceSessionService,
     ConversationStateMachineService,
     StreamingResponseService,

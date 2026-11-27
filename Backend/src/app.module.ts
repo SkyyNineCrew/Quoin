@@ -71,7 +71,6 @@ import { validateEnvironment } from './config/environment-validation';
           VoiceJob,
         ],
         logging: configService.get('NODE_ENV') === 'development',
-        migrations: ['src/database/migrations/*{.ts,.js}'],
       }),
     }),
 
