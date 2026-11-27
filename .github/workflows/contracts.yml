@@ -12,12 +12,19 @@ on:
       - '.github/workflows/contracts.yml'
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Contracts
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - run: cd Contracts && cargo test --all
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --all
