@@ -20,10 +20,15 @@ fn cb_config() -> CircuitBreakerConfig {
     }
 }
 
+/// Register a contract address so it exists in the ledger.
+fn existing_address(env: &Env) -> Address {
+    env.register_contract(None, CrossChainRouter)
+}
+
 fn setup_cross_chain(env: &Env) -> (cross_chain_router::CrossChainRouterClient<'_>, Address) {
     let contract_id = env.register_contract(None, CrossChainRouter);
     let client = cross_chain_router::CrossChainRouterClient::new(env, &contract_id);
-    let admin = Address::generate(env);
+    let admin = existing_address(env);
     client.init(&admin);
     (client, admin)
 }
@@ -91,8 +96,8 @@ fn test_cross_chain_verify_replay_rejected() {
 
     let (client, _admin) = setup_cross_chain(&env);
 
-    let sender = Address::generate(&env);
-    let recipient = Address::generate(&env);
+    let sender = existing_address(&env);
+    let recipient = existing_address(&env);
     let payload = Bytes::from_array(&env, &[3u8; 32]);
 
     let message_id = client.initiate_message(&0, &1, &sender, &recipient, &payload);
